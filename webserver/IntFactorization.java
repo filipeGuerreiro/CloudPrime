@@ -10,7 +10,7 @@ public class IntFactorization {
   private ArrayList<BigInteger> factors = new ArrayList<BigInteger>();
 
 
-  ArrayList<BigInteger>  calcPrimeFactors(BigInteger num) {
+  ArrayList<BigInteger> calcPrimeFactors(BigInteger num) {
  
     if (num.compareTo(one)==0) {
       return factors;
