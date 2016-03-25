@@ -19,12 +19,12 @@
     
 **Security group**:
 1. Inbound Web server :
-- HTTP at port 8000 from <loadBalancer_IPaddress>
-- SSH  at port 22   from <myPC_IPaddress>
+- HTTP at port 8000 from "loadBalancer_IPaddress"
+- SSH  at port 22   from "myPC_IPaddress"
 
 2. Inbound Load balancer:
 - HTTP at port 8000 from anywhere
-- SSH  at port 22   from <myPC_IPaddress>
+- SSH  at port 22   from "myPC_IPaddress"
 
 ## Collected metrics
 
