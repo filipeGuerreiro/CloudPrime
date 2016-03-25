@@ -18,7 +18,8 @@
 **Grace period**: 60 seconds
     
 **Security group**:
-1. Inbound Web server :
+
+1. Inbound Web server:
 - HTTP at port 8000 from "loadBalancer_IPaddress"
 - SSH  at port 22   from "myPC_IPaddress"
 
