@@ -8,7 +8,13 @@ public class IntFactorization {
   private BigInteger one = new BigInteger("1");
   private BigInteger divisor = new BigInteger("2");
   private ArrayList<BigInteger> factors = new ArrayList<BigInteger>();
-
+  
+  // wrapper method for calcPrimeFactors
+  // makes it possible to add instrumentation when calcPrimeFactors finishes
+  ArrayList<BigInteger> factorize(BigInteger num) {
+      
+      return calcPrimeFactors(num);
+  }
 
   ArrayList<BigInteger> calcPrimeFactors(BigInteger num) {
  

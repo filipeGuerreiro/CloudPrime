@@ -1,0 +1,1 @@
+998 instructions in 343 basic blocks were executed in 36 methods.

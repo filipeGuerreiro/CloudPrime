@@ -35,6 +35,8 @@ public class LoadBalancer {
             String[] parts = request.split("/");
             request = parts[1];
             
+            // estimate the duration of the request based on parameter and mss data
+            
             // choose which machine will handle the request
             Integer machine = chooseMachine(request);
             
