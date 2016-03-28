@@ -2,6 +2,10 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.io.IOException;
 
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+
 public class IntFactorization {
 
   private BigInteger zero = new BigInteger("0");
@@ -13,7 +17,21 @@ public class IntFactorization {
   // makes it possible to add instrumentation when calcPrimeFactors finishes
   ArrayList<BigInteger> factorize(BigInteger num) {
       
-      return calcPrimeFactors(num);
+    ArrayList<BigInteger> result = calcPrimeFactors(num);
+    
+    // prints the requested number to file
+    File file = new File("metrics.txt");
+    FileWriter writer = null;
+    try {
+        writer = new FileWriter(file, true); // true for append mode
+        writer.write("JOB " + num.toString() + System.lineSeparator());
+    } catch (IOException e) {
+        e.printStackTrace();
+    } finally {
+        if (writer != null) try { writer.close(); } catch (IOException ignore) {}
+    }
+      
+    return result;
   }
 
   ArrayList<BigInteger> calcPrimeFactors(BigInteger num) {

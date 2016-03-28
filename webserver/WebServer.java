@@ -19,6 +19,7 @@ public final class WebServer {
         // open socket on port 8000 which expects requests as <IP>:8000/<requestNumber>
         HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/", new MyHandler());
+        System.out.println("Started webserver at port 8000");
         
         // create a multi-threaded executor
         Executor myExecutor = new ThreadPerTaskExecutor();
@@ -43,11 +44,7 @@ public final class WebServer {
             String request = requestedUri.getPath();
             String[] parts = request.split("/");
             request = parts[1];
-            
-            // print ID of thread <- finds out how many requests are being handled by this server
-            // how long the request has been running
-            long threadId = Thread.currentThread().getId();
-            
+                        
             // factorize number
             BigInteger requestedNumber = new BigInteger(request);
             ArrayList<BigInteger> result = new IntFactorization().factorize(requestedNumber);           
