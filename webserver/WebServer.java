@@ -41,8 +41,8 @@ public final class WebServer {
             
             // read request data
             URI requestedUri = t.getRequestURI();
-            String request = requestedUri.getPath();
-            String[] parts = request.split("/");
+            String request = requestedUri.getQuery();
+            String[] parts = request.split("n=");
             request = parts[1];
                         
             // factorize number

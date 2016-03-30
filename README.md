@@ -75,5 +75,5 @@ cd ..
 java -XX:-UseSplitVerifier WebServer
 
 # Example query webserver
-curl -X GET http://localhost:8000/7000000000
+curl -X GET http://localhost:8000/f.html?n=7000000000
 ```
