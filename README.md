@@ -60,3 +60,20 @@ Thread 56 finished in 460671 milliseconds with 127301692862 bblocks.
 ```
 
 ## Script to start the application
+
+```bash
+# Create binary files
+cd $WEBSERVER_HOME
+javac *.java
+
+# Instrument IntFactorization.class
+cd instrumented
+java -XX:-UseSplitVerifier CloudPrimeInstrumentation .. ..
+
+# Run webserver
+cd ..
+java -XX:-UseSplitVerifier WebServer
+
+# Example query webserver
+curl -X GET http://localhost:8000/7000000000
+```

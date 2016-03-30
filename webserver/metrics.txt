@@ -1,34 +1,7 @@
+
+JOB 7000
+Thread 16 finished in 4 milliseconds with 182 bblocks.
 JOB 700000000000000000
-Thread 13 finished in 12 milliseconds with 343 bblocks.
-JOB 6752937214
-Thread 15 finished in 142 milliseconds with 3419918 bblocks.
-JOB 6752937217
-Thread 17 finished in 4 milliseconds with 3425501 bblocks.
-JOB 6752937217
-Thread 21 finished in 4 milliseconds with 64317524537 bblocks.
-JOB 499
-Thread 25 finished in 10 milliseconds with 116805079730 bblocks.
-JOB 977
-Thread 27 finished in 10 milliseconds with 116995396205 bblocks.
-JOB 2953
-Thread 29 finished in 7 milliseconds with 117109417851 bblocks.
-JOB 6197
-Thread 31 finished in 9 milliseconds with 117235545721 bblocks.
-JOB 7919
-Thread 33 finished in 16 milliseconds with 117358109392 bblocks.
-JOB 15331
-Thread 35 finished in 24 milliseconds with 117703461950 bblocks.
-JOB 29311
-Thread 38 finished in 42 milliseconds with 117968663768 bblocks.
-JOB 79273
-Thread 41 finished in 82 milliseconds with 118251732321 bblocks.
-JOB 170647
-Thread 44 finished in 219 milliseconds with 118474183116 bblocks.
-JOB 2374109
-Thread 47 finished in 2411 milliseconds with 118849951748 bblocks.
-JOB 2374109
-Thread 50 finished in 2654 milliseconds with 119066007518 bblocks.
-JOB 33839593
-Thread 53 finished in 36740 milliseconds with 119673700298 bblocks.
-JOB 438390839
-Thread 56 finished in 460671 milliseconds with 127301692862 bblocks.
+Thread 18 finished in 4 milliseconds with 525 bblocks.
+JOB 700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+Thread 22 finished in 4 milliseconds with 2164 bblocks.
