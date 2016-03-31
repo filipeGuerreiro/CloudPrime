@@ -59,16 +59,22 @@ Thread 48 || 4774 milliseconds || 219134288 loads
 ## Script to start the application
 
 ```bash
+# Set Java running options
+export _JAVA_OPTIONS=”-XX:-UseSplitVerifier” 
+
+# Compile BIT tool CloudPrimeInstrumentation (if it's not done already)
+cd $BIT_HOME/BIT/samples
+javac -cp $PATH *.java
+
 # Create binary files
 cd $WEBSERVER_HOME
 javac *.java
 
 # Instrument IntFactorization.class
-cd instrumented
+java -cp $PATH CloudPrimeInstrumentation . ./instrumented
 java -XX:-UseSplitVerifier CloudPrimeInstrumentation .. ..
 
 # Run webserver
-cd ..
 java -XX:-UseSplitVerifier WebServer
 
 # Example query webserver
