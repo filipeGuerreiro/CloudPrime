@@ -59,24 +59,30 @@ Thread 48 || 4774 milliseconds || 219134288 loads
 ## Script to start the application
 
 ```bash
+# Set directory variables -- for example:
+BIT_HOME="/home/ec2-user/webserver/BIT"
+WEBSERVER_HOME="/home/ec2-user/webserver"
+
 # Set Java running options
 export _JAVA_OPTIONS=”-XX:-UseSplitVerifier” 
+CP=$BIT_HOME:$BIT_HOME/BIT:$BIT_HOME/samples
 
 # Compile BIT tool CloudPrimeInstrumentation (if it's not done already)
-cd $BIT_HOME/BIT/samples
-javac -cp $PATH *.java
+cd $BIT_HOME
+javac samples/*.java
 
-# Create binary files
+# Create class files
 cd $WEBSERVER_HOME
 javac *.java
 
 # Instrument IntFactorization.class
-java -cp $PATH CloudPrimeInstrumentation . ./instrumented
-java -XX:-UseSplitVerifier CloudPrimeInstrumentation .. ..
+java -cp $CP:. CloudPrimeInstrumentation . .
 
 # Run webserver
-java -XX:-UseSplitVerifier WebServer
+java -cp $CP:. WebServer
 
-# Example query webserver
+# If running local
 curl -X GET http://localhost:8000/f.html?n=7000000000
+# If in AWS
+curl -X GET http://<loadBalancerIP-or-DNS>/f.html?n=7000000000
 ```
