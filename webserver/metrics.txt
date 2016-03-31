@@ -1,9 +1,0 @@
-
-JOB 7000
-Thread 16 finished in 4 milliseconds with 182 bblocks.
-JOB 700000000000000000
-Thread 18 finished in 4 milliseconds with 525 bblocks.
-JOB 700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-Thread 22 finished in 4 milliseconds with 2164 bblocks.
-JOB 7000000000
-Thread 13 finished in 8 milliseconds with 199 bblocks.

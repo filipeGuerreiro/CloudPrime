@@ -11,6 +11,8 @@ public class CloudPrimeInstrumentation {
     private static long startTime;
     private static long endTime;
     
+    private static long loadcount = 0, storecount = 0;
+    
     /* main reads in all the files class files present in the input directory,
      * instruments only IntFactorization, and outputs it to the specified output directory.
      */
@@ -31,22 +33,29 @@ public class CloudPrimeInstrumentation {
                     
                     // instrument routine calcPrimeFactors to measure metrics
                     if(routine.getMethodName().equals("calcPrimeFactors")) {
-                        //routine.addBefore("CloudPrimeInstrumentation", "mcount", new Integer(1));
                         
-                        for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
-                            BasicBlock bb = (BasicBlock) b.nextElement();
-                            bb.addBefore("CloudPrimeInstrumentation", "count", new Integer(bb.size()));
-                        }
+                        // calculate loads
+                        for (Enumeration instrs = (routine.getInstructionArray()).elements(); instrs.hasMoreElements(); ) {
+							Instruction instr = (Instruction) instrs.nextElement();
+							int opcode=instr.getOpcode();
+                            short instr_type = InstructionTable.InstructionTypeTable[opcode];
+                            if (instr_type == InstructionTable.LOAD_INSTRUCTION) {
+                                instr.addBefore("CloudPrimeInstrumentation", "LSCount", 0);
+                            }
+							
+						}
                     }
-                    // when calcPrimeFactors finishes, print result to file
+                    
+                    // when calcPrimeFactors finishes, method factorize is called and prints result to file
                     else if(routine.getMethodName().equals("factorize")) {
                         routine.addBefore("CloudPrimeInstrumentation", "startTimer", ci.getClassName());
                         
-                        //routine.addAfter("CloudPrimeInstrumentation", "endTimer", ci.getClassName());
+                        routine.addAfter("CloudPrimeInstrumentation", "endTimer", ci.getClassName());
                         routine.addAfter("CloudPrimeInstrumentation", "printICount", ci.getClassName());
                     }
                 }
-                //ci.addAfter("CloudPrimeInstrumentation", "printICount", ci.getClassName());
+                
+                // create instrumented .class
                 ci.write(argv[1] + System.getProperty("file.separator") + infilename);
             }
         }
@@ -56,11 +65,10 @@ public class CloudPrimeInstrumentation {
     // print how long the request has been running
     public static synchronized void printICount(String foo) {
         long threadId = Thread.currentThread().getId();
-        endTime = System.currentTimeMillis();
         long duration = (endTime - startTime); // milliseconds
         
         //TODO: find value of job request Number!
-        String result = "Thread " + threadId + " finished in " + duration + " milliseconds with " + b_count + " bblocks.";
+        String result = "Thread " + threadId + " || " + duration + " milliseconds || " + loadcount + " loads";
         //System.out.println(result);
 
         File file = new File("metrics.txt");
@@ -82,6 +90,10 @@ public class CloudPrimeInstrumentation {
     public static synchronized void endTimer(String foo) {
         endTime = System.currentTimeMillis();
     }
+    
+	public static synchronized void LSCount(int type) {
+        loadcount++;
+	}
     
 
     public static synchronized void count(int incr) {
