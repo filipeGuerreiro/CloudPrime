@@ -16,7 +16,7 @@
 - Increase group size when CPU utilization > 60% for 60 seconds
 - Decrease group size when CPU utilization < 30% for 30 minutes
     
-**Grace period**: 60 seconds
+**Grace period**: 120 seconds
     
 **Security group**:
 

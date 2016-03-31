@@ -1,0 +1,16 @@
+JOB 1000
+Thread 13 || 3 milliseconds || 81 loads
+JOB 1000
+Thread 13 || 4 milliseconds || 81 loads
+JOB 1000
+Thread 17 || 3 milliseconds || 162 loads
+JOB 1000
+Thread 21 || 4 milliseconds || 243 loads
+JOB 1000
+Thread 25 || 2 milliseconds || 324 loads
+JOB 1000
+Thread 29 || 3 milliseconds || 405 loads
+JOB 1000
+Thread 33 || 2 milliseconds || 486 loads
+JOB 1000
+Thread 37 || 4 milliseconds || 567 loads
