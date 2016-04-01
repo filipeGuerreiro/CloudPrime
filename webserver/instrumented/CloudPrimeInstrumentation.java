@@ -3,15 +3,26 @@ import java.io.*;
 import java.nio.file.*;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.Arrays;
+
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class CloudPrimeInstrumentation {
-    private static PrintStream out = null;
-    private static long i_count = 0, b_count = 0, m_count = 0;
-    private static long startTime;
-    private static long endTime;
     
-    private static long loadcount = 0, storecount = 0;
+    private static final int MAX_THREADS = 50;
+    
+    private static PrintStream out = null;
+    
+    // locks for accessing the instrumentation metrics thread-safely
+    private static Lock[] _mutex = new Lock[MAX_THREADS];
+    static { Arrays.fill(_mutex, new ReentrantLock(true)); }
+    
+    // instrumentation metrics
+    private static long[] _startTime = new long[MAX_THREADS]; // default init = 0   
+    private static long[] _loadcount = new long[MAX_THREADS]; // default init = 0
+    
     
     /* main reads in all the files class files present in the input directory,
      * instruments only IntFactorization, and outputs it to the specified output directory.
@@ -48,10 +59,10 @@ public class CloudPrimeInstrumentation {
                     
                     // when calcPrimeFactors finishes, method factorize is called and prints result to file
                     else if(routine.getMethodName().equals("factorize")) {
-                        routine.addBefore("CloudPrimeInstrumentation", "startTimer", ci.getClassName());
+                        routine.addBefore("CloudPrimeInstrumentation", "startTimer", 0);
                         
-                        routine.addAfter("CloudPrimeInstrumentation", "endTimer", ci.getClassName());
-                        routine.addAfter("CloudPrimeInstrumentation", "printICount", ci.getClassName());
+                        //routine.addAfter("CloudPrimeInstrumentation", "endTimer", ci.getClassName());
+                        routine.addAfter("CloudPrimeInstrumentation", "printICount", 0);
                     }
                 }
                 
@@ -61,21 +72,46 @@ public class CloudPrimeInstrumentation {
         }
     }
     
+    // acquires locks here
+    public static void startTimer(int nil) {
+        long threadId = Thread.currentThread().getId();
+        
+        _mutex[getIndex(threadId)].lock();
+        _startTime[getIndex(threadId)] = System.currentTimeMillis();
+    }
+    
+    // always called after startTimer
+	public static void LSCount(int nil) {
+        long threadId = Thread.currentThread().getId();
+        
+        _loadcount[getIndex(threadId)]++;
+	}
+    
     // print ID of thread <- finds out how many requests are being handled by this server
     // print how long the request has been running
-    public static synchronized void printICount(String foo) {
+    public static void printICount(int nil) {
         long threadId = Thread.currentThread().getId();
-        long duration = (endTime - startTime); // milliseconds
+        long endTime = System.currentTimeMillis();
+        long duration = (endTime - _startTime[getIndex(threadId)]); // milliseconds
         
         //TODO: find value of job request Number!
-        String result = "Thread " + threadId + " || " + duration + " milliseconds || " + loadcount + " loads";
-        //System.out.println(result);
+        String result = "Thread " + threadId + " || " + duration + " milliseconds || " + _loadcount[getIndex(threadId)] + " loads";
+        
+        // release locks here
+        _loadcount[getIndex(threadId)] = 0;
+        _startTime[getIndex(threadId)] = 0;
+        _mutex[getIndex(threadId)].unlock();
 
+        // synchronized method
+        writeToFile(result);
+    }
+    
+    private static synchronized void writeToFile(String text) {
         File file = new File("metrics.txt");
         FileWriter writer = null;
         try {
             writer = new FileWriter(file, true); // true for append mode
-            writer.write(result + System.lineSeparator());
+            writer.write(text + System.lineSeparator());
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -83,26 +119,9 @@ public class CloudPrimeInstrumentation {
         }
     }
     
-    public static synchronized void startTimer(String foo) {
-        startTime = System.currentTimeMillis();
+    private static int getIndex(long id) {
+        return (int) id % MAX_THREADS;
     }
     
-    public static synchronized void endTimer(String foo) {
-        endTime = System.currentTimeMillis();
-    }
-    
-	public static synchronized void LSCount(int type) {
-        loadcount++;
-	}
-    
-
-    public static synchronized void count(int incr) {
-        i_count += incr;
-        b_count++;
-    }
-
-    public static synchronized void mcount(int incr) {
-		m_count++;
-    }
 }
 
