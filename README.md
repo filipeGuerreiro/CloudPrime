@@ -67,21 +67,22 @@ WEBSERVER_HOME="/home/ec2-user/webserver"
 
 # Set Java running options
 export _JAVA_OPTIONS=”-XX:-UseSplitVerifier” 
-CP=$BIT_HOME:$BIT_HOME/BIT:$BIT_HOME/samples
+CP=$WEBSERVER_HOME:$BIT_HOME:$BIT_HOME/samples
 
 # Compile BIT tool CloudPrimeInstrumentation (if it's not done already)
 cd $BIT_HOME
-javac samples/*.java
+javac samples/*.java 
+#or javac -cp $CPsamples/*.java (if it can't find BIT lib)
 
 # Create class files
 cd $WEBSERVER_HOME
 javac *.java
 
 # Instrument IntFactorization.class
-java -cp $CP:. CloudPrimeInstrumentation . .
+java -cp $CP CloudPrimeInstrumentation . .
 
 # Run webserver
-java -cp $CP:. WebServer
+java -cp $CP WebServer
 
 # If running local
 curl -X GET http://localhost:8000/f.html?n=7000000000
