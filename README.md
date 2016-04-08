@@ -34,7 +34,7 @@
 
 1. Job Request value - Metric for mapping the factorizable number to the following metrics.
 2. Number of load calls - Metric for measuring the difficulty of the job.
-3. Currant duration - Metric that calculates how long the request processing has been running. Can be combined with load count to determine CPU use.
+3. Current duration - Metric that calculates how long the request processing has been running. Can be combined with load count to determine CPU use.
 4. Thread of current process - Metric for tracking the state of each job on the server.
 
 ## Example log with collected metrics
