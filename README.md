@@ -6,17 +6,19 @@
 **Health check**:
 - HTTP:8000/f.html?n=1000 => small request to check that the unit is still operational
 - Issued every 30 seconds
-- Timeout after 5 seconds
-- Declares the unit Unhealthy after 2 consecutive timeouts
+- Timeout after 15 seconds
+- Declares the unit Unhealthy after 3 consecutive timeouts
 - Declares the unit Healthy again after 3 consecutive responses
 
 **Auto-scaling rules and policies**:
 - Minimum number of machines: 1
 - Maximum number of machines: none
 - Increase group size when CPU utilization > 60% for 60 seconds
-- Decrease group size when CPU utilization < 30% for 30 minutes
+- Decrease group size when CPU utilization < 30% for 2 consecutive 15 minute periods
     
 **Grace period**: 120 seconds
+
+**Cooldown period**: 300 seconds
     
 **Security group**:
 
