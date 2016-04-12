@@ -16,11 +16,11 @@ public class WebServerInfo {
         this.requestList = new ArrayList<Request>();
     }
     
-    public addRequest(long id, BigInteger parameter, long estimatedTime) {
+    public void addRequest(long id, BigInteger parameter, long estimatedTime) {
         this.requestList.add(new Request(id, parameter, estimatedTime));
     }
     
-    public endRequest(long id) {
+    public void endRequest(long id) {
         Request r = getRequest(id);
         // TODO
     }

@@ -18,10 +18,10 @@ import java.util.concurrent.Executor;
 
 public class MSS {
     
-    private static List<String> machinesInCluster = Collections.synchronizedList(new ArrayList<String>());
+    private static AmazonDynamoDB amazonDB;
     
     public MSS() {
-        //machinesInCluster = new ArrayList<String>();
+        amazonDB = new AmazonDynamoDB();
     }
 
     public static void main(String[] args) throws Exception {

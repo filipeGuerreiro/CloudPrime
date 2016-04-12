@@ -1,5 +1,7 @@
 *.class
 webserver/metrics.txt
+aws-java-sdk-1.10.69/*
+.aws/*
 
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
