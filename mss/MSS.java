@@ -54,6 +54,8 @@ public class MSS {
             
             // TODO
             System.out.println("webserver:" +webserver+" metric:"+request);
+            
+            String response = "TODO";
 
             // send response to requester
             t.sendResponseHeaders(200, response.length());

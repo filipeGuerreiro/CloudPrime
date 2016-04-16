@@ -43,6 +43,10 @@ public class AmazonDynamoDB {
      */
 
     static AmazonDynamoDBClient dynamoDB;
+    
+    private static final String TABLE_NAME = "metrics-table";
+    private static final String ITEM_NAME  = "webserverIP";
+    private static final String ATTRB_NAME  = "threads";
 
     /**
      * The only information needed to create a client are security credentials
@@ -67,29 +71,26 @@ public class AmazonDynamoDB {
                     "location (~/.aws/credentials), and is in valid format.",
                     e);
         }
-        dynamoDB = new AmazonDynamoDBClient(credentials);
+        this.dynamoDB = new AmazonDynamoDBClient(credentials);
         Region usWest2 = Region.getRegion(Regions.US_WEST_2);
-        dynamoDB.setRegion(usWest2);
+        this.dynamoDB.setRegion(usWest2);
         
         try {
-            final String tableName     = "metrics-table";
-            final String attributeName = "number";
-
             // Create table if it does not exist yet
-            if (Tables.doesTableExist(dynamoDB, tableName)) {
-                System.out.println("Table " + tableName + " is already ACTIVE");
+            if (Tables.doesTableExist( this.dynamoDB , TABLE_NAME )) {
+                System.out.println("Table " + TABLE_NAME + " is already ACTIVE");
             } else {
-                // Create a table with a primary hash key named 'name', which holds a string
-                CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
-                    .withKeySchema(new KeySchemaElement().withAttributeName( attributeName ).withKeyType(KeyType.HASH))
-                    .withAttributeDefinitions(new AttributeDefinition().withAttributeName( attributeName ).withAttributeType(ScalarAttributeType.S))
+                // Create a table with a primary hash key named 'ITEM_NAME', which holds a string
+                CreateTableRequest createTableRequest = new CreateTableRequest().withTableName( TABLE_NAME )
+                    .withKeySchema(new KeySchemaElement().withAttributeName( ITEM_NAME ).withKeyType(KeyType.HASH))
+                    .withAttributeDefinitions(new AttributeDefinition().withAttributeName( ITEM_NAME ).withAttributeType(ScalarAttributeType.S))
                     .withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
-                    TableDescription createdTableDescription = dynamoDB.createTable(createTableRequest).getTableDescription();
+                    TableDescription createdTableDescription = this.dynamoDB.createTable(createTableRequest).getTableDescription();
                 System.out.println("Created Table: " + createdTableDescription);
 
                 // Wait for it to become active
-                System.out.println("Waiting for " + tableName + " to become ACTIVE...");
-                Tables.awaitTableToBecomeActive(dynamoDB, tableName);
+                System.out.println("Waiting for " + TABLE_NAME + " to become ACTIVE...");
+                Tables.awaitTableToBecomeActive( this.dynamoDB , TABLE_NAME );
             }
         } catch (AmazonServiceException ase) {
             amazonServiceExceptionMessage(ase);
@@ -99,34 +100,87 @@ public class AmazonDynamoDB {
     }
     
     /*
-     * Search for an exact match in the database for 'number' in column 'attributeName'.
+     * Search for metrics in 'webserverIP'.
      */
-    public static void searchDB(BigInteger number, String attributeName) throws AmazonServiceException, AmazonClientException {
+    public static void searchDB(String webserverIP) throws AmazonServiceException, AmazonClientException {
         HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
         Condition condition = new Condition()
             .withComparisonOperator(ComparisonOperator.EQ.toString())
-            .withAttributeValueList(new AttributeValue().withN( number ));
-        scanFilter.put(attributeName, condition);
-        ScanRequest scanRequest = new ScanRequest(tableName).withScanFilter(scanFilter);
-        ScanResult scanResult = dynamoDB.scan(scanRequest);
+            .withAttributeValueList(new AttributeValue().withS( webserverIP ));
+        scanFilter.put( ITEM_NAME , condition);
+        ScanRequest scanRequest = new ScanRequest( TABLE_NAME ).withScanFilter(scanFilter);
+        ScanResult scanResult = this.dynamoDB.scan(scanRequest);
         System.out.println("Result: " + scanResult);
     }
     
     /*
-     * Create and insert new elements into db.
+     * Create new item into db when new webserver joins.
      */
-    public static void insertItem(String tableName, Map<String, AttributeValue> item) throws AmazonServiceException, AmazonClientException {
-        PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
-        PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
+    public static void putItem(String webserverIP) throws AmazonServiceException, AmazonClientException {
+        Item item = new Item()
+            .withPrimaryKey( ITEM_NAME , webserverIP )
+            .withMap( ATTRB_NAME , new HashMap<String, String>() );
+        PutItemRequest putItemRequest = new PutItemRequest(TABLE_NAME, item);
+        PutItemResult putItemResult = this.dynamoDB.putItem(putItemRequest);
         System.out.println("Result: " + putItemResult);
     }
     
-    public static Map<String, AttributeValue> newItem(BigInteger number, BigInteger nLoads) {
-        Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
-        item.put("number", new AttributeValue().withN(BigInteger.toString(number)));
-        item.put("nLoads", new AttributeValue().withN(Integer.toString(nLoads)));
+    /*
+     * Delete item when webserver leaves.
+     */
+    public static void deleteItem(String webserverIP) {
+        Table table = this.dynamoDB.getTable( TABLE_NAME );
 
-        return item;
+        DeleteItemOutcome outcome = table.deleteItem( ITEM_NAME , webserverIP );
+    }
+    
+    /*
+     * Update thread load periodically.
+     * Used by webserver.
+     */
+    public static void updateItem(String webserverIP, String threadID, String load) {
+        Table table = this.dynamoDB.getTable( TABLE_NAME );
+        
+        Map<String, String> expressionAttributeNames = new HashMap<String, String>();
+        expressionAttributeNames.put( "#A", ATTRB_NAME +"."+ threadID );
+        
+        Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
+        expressionAttributeValues.put(":val1", load);
+        
+        UpdateItemOutcome outcome =  table.updateItem(
+            ITEM_NAME,
+            webserverIP,
+            "set #A = :val2", // UpdateExpression
+            expressionAttributeNames,
+            expressionAttributeValues);
+    }
+    
+    /*
+     * Get the load value for a specific thread.
+     * Used by webserver ? TODO
+     */
+    public static void getItem(String webserverIP, String threadID) {
+        GetItemSpec spec = new GetItemSpec()
+            .withPrimaryKey( ITEM_NAME , webserverIP )
+            .withProjectionExpression( ATTRB_NAME + "." + threadID ) // access map element, e.g. threads.16 : <metric>
+            .withConsistentRead( false );
+
+        Table table = this.dynamoDB.getTable( TABLE_NAME );
+        Item item = table.getItem(spec);
+    }
+    
+    /*
+     * Gets all the load values from each thread for that webserver. 
+     * Used by loadbalancer to determine total load on that webserver.
+     */
+    public static Map<String,List<Item>> getMetrics(String... webserverIPs) {
+        TableKeysAndAttributes forumTableKeysAndAttributes = new TableKeysAndAttributes( TABLE_NAME )
+            .withProjectionExpression( ATTRB_NAME );
+
+        forumTableKeysAndAttributes.addHashOnlyPrimaryKeys( ITEM_NAME , webserverIPs );
+        BatchGetItemOutcome outcome = dynamoDB.batchGetItem(forumTableKeysAndAttributes);
+        
+        return outcome.getTableItems();
     }
     
     /*

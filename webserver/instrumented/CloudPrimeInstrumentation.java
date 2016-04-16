@@ -4,6 +4,7 @@ import java.nio.file.*;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.Arrays;
+import java.util.Timer;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -11,7 +12,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class CloudPrimeInstrumentation {
     
-    private static final int MAX_THREADS = 50;
+    private static final int MAX_THREADS  = 256;
+    private static final long TIMER_PERIOD = (7 * 1000L); // 7 seconds
     
     private static PrintStream out = null;
     
@@ -20,8 +22,23 @@ public class CloudPrimeInstrumentation {
     static { Arrays.fill(_mutex, new ReentrantLock(true)); }
     
     // instrumentation metrics
-    private static long[] _startTime = new long[MAX_THREADS]; // default init = 0   
+    private static long[] _startTime = new long[MAX_THREADS]; // default init = 0 TODO: REMOVE 
     private static long[] _loadcount = new long[MAX_THREADS]; // default init = 0
+    
+    // timers that periodically send metrics to MSS
+    private static Timer[] _timer = new Timer[MAX_THREADS];
+    static { Arrays.fill(_timer, new Timer()); }
+    
+    private class MyTimerTask extends TimerTask {
+        private long threadId;
+        MyTimerTask(long threadId) { this.threadId = threadId; }
+        
+        @Override
+        public void run() {
+            sendMetrics( this.threadId );
+        }
+    }
+    private static MyTimerTask _timerTask = new MyTimerTask[MAX_THREADS];
     
     
     /* main reads in all the files class files present in the input directory,
@@ -61,8 +78,8 @@ public class CloudPrimeInstrumentation {
                     else if(routine.getMethodName().equals("factorize")) {
                         routine.addBefore("CloudPrimeInstrumentation", "startTimer", 0);
                         
-                        //routine.addAfter("CloudPrimeInstrumentation", "endTimer", ci.getClassName());
-                        routine.addAfter("CloudPrimeInstrumentation", "printICount", 0);
+                        routine.addAfter("CloudPrimeInstrumentation", "endTimer", 0);
+                        //routine.addAfter("CloudPrimeInstrumentation", "printICount", 0);
                     }
                 }
                 
@@ -75,9 +92,27 @@ public class CloudPrimeInstrumentation {
     // acquires locks here
     public static void startTimer(int nil) {
         long threadId = Thread.currentThread().getId();
+        int index = getIndex(threadId);
         
-        _mutex[getIndex(threadId)].lock();
-        _startTime[getIndex(threadId)] = System.currentTimeMillis();
+        _mutex[index].lock();
+        _timerTask[index] = new MyTimerTask(threadId);
+        _timer[index].schedule(_timerTask[index], 0L, TIMER_PERIOD);
+    }
+    
+    // releases locks here
+    public static void endTimer(int nil) {
+        long threadId = Thread.currentThread().getId();
+        int index = getIndex(threadId);
+        
+        // stop timer
+        _timerTask[index].cancel();
+        
+        // remove metrics from mss
+        removeMetrics(threadId);
+        
+        // release locks
+        _loadcount[index] = 0;
+        _mutex[index].unlock();
     }
     
     // always called after startTimer
@@ -91,16 +126,19 @@ public class CloudPrimeInstrumentation {
     // print how long the request has been running
     public static void printICount(int nil) {
         long threadId = Thread.currentThread().getId();
-        long endTime = System.currentTimeMillis();
-        long duration = (endTime - _startTime[getIndex(threadId)]); // milliseconds
+        int index = getIndex(threadId);
         
-        //TODO: find value of job request Number!
-        String result = "Thread " + threadId + " || " + duration + " milliseconds || " + _loadcount[getIndex(threadId)] + " loads";
+        long endTime = System.currentTimeMillis();
+        long duration = (endTime - _startTime[index]); // milliseconds
+        
+        long load = _loadcount[index] / duration;
+        
+        String result = "Thread " + threadId + " || load " + load;
         
         // release locks here
-        _loadcount[getIndex(threadId)] = 0;
-        _startTime[getIndex(threadId)] = 0;
-        _mutex[getIndex(threadId)].unlock();
+        _loadcount[index] = 0;
+        _startTime[index] = 0;
+        _mutex[index].unlock();
 
         // synchronized method
         writeToFile(result);
@@ -117,6 +155,24 @@ public class CloudPrimeInstrumentation {
         } finally {
             if (writer != null) try { writer.close(); } catch (IOException ignore) {}
         }
+    }
+    
+    private static void sendMetrics(long threadId) {
+        int index = getIndex(threadId);
+        
+        double metric =  _loadcount[index] / (double) TIMER_PERIOD;
+        _loadcount[index] = 0;
+        
+        // TODO
+        
+    }
+    
+    private static void removeMetrics(long threadId) {
+        int index = getIndex(threadId);
+        
+        _loadcount[index] = 0;
+        // TODO
+        
     }
     
     private static int getIndex(long id) {
