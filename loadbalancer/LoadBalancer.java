@@ -11,20 +11,52 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.Collections;
 import java.util.concurrent.Executor;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2Client;
+
+import com.amazonaws.AmazonClientException;
+
+import com.amazonaws.services.ec2.model.Instance;
+import com.amazonaws.services.ec2.model.Reservation;
+import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesResult;
+
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 
 public class LoadBalancer {
     
-    private static List<String> machinesInCluster = Collections.synchronizedList(new ArrayList<String>());
+    private static final int UPDATE_INFO_PERIOD = 15 * 1000; // 15 seconds   
+    private static Timer _updateTimer = new Timer();
     
-    public LoadBalancer() {
-        //machinesInCluster = new ArrayList<String>();
-    }
+    // client used for checking how many webservers are running and what their IP is
+    private static AmazonEC2 _ec2Client;
+    // when a request comes, update the load by this amount while we don't know the MSS stored load
+    private static final long RQST_INCREMENT = 1000L; 
+    
+    private static Map<String, Long> _webservers = Collections.synchronizedMap(new HashMap<String, Long>());
+
 
     public static void main(String[] args) throws Exception {
+        
+        initEC2Client();
+        _updateTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                updateInstanceInformation();
+            }
+        }, UPDATE_INFO_PERIOD);
+        
         // open socket on port 8000 which expects requests as <IP>:8000/f.html?n=<requestNumber>
         HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/", new ReceiveRequestHandler());
@@ -34,16 +66,6 @@ public class LoadBalancer {
         server.setExecutor(new ThreadPerTaskExecutor());
         
         server.start();
-        
-        // open socket on port 8001 which expects new webserver announcements as <IP>:8001/webserver/ip?<myIP>
-        HttpServer ipServer = HttpServer.create(new InetSocketAddress(8001), 0);
-        ipServer.createContext("/webserver", new WebserverIpHandler());
-        System.out.println("LB: Receiving webserver IPs at port 8001");
-        
-        // create a multi-threaded executor
-        ipServer.setExecutor(new ThreadPerTaskExecutor()); 
-        
-        ipServer.start();
     }
     
     // Executor which creates a thread for each request
@@ -66,15 +88,20 @@ public class LoadBalancer {
             // estimate the duration of the request based on parameter and mss data
             
             // choose which machine will handle the request
-            String machineIP = chooseMachine(request);
+            String machineIP = chooseMachine();
             
             // send request to machine
             String response = "NOT FOUND";
             try {
-                response = sendGet(machineIP, request);
-            } catch(Exception e) { System.out.println("Failed during request to webserver: " + e.toString()); }
+                Long currentLoad = _webservers.get( machineIP );
+                _webservers.replace( machineIP , currentLoad + RQST_INCREMENT );
+                
+                response = sendRequest( machineIP , request );
+                
+                _webservers.replace( machineIP , currentLoad );
+            } catch(Exception e) { System.out.println("Failed to send request to webserver: " + e.toString()); }
             
-            // send response to requester
+            // send response back to requester
             t.sendResponseHeaders(200, response.length());
             
             OutputStream os = t.getResponseBody();
@@ -83,36 +110,25 @@ public class LoadBalancer {
         }
     }
     
-    
-    static class WebserverIpHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange t) throws IOException {
-            
-            // read request data
-            URI requestedUri = t.getRequestURI();
-            String request = requestedUri.getPath().split("/webserver/")[1];
-            
-            System.out.println("New IP: "+request);
-            // store IP name
-            addWebserver(request);
-            
-            String response = "OK";
-            // send response to requester
-            t.sendResponseHeaders(200, response.length());          
-            OutputStream os = t.getResponseBody();
-            os.write(response.getBytes());
-            os.close();
-            
+    // check which machine has the lowest load
+    private static String chooseMachine() {
+        // updateInstanceInformation();
+        String chosenOne = "";
+        long lowestLoad = Long.MAX_VALUE;
+        for (Map.Entry<String, Long> entry : _webservers.entrySet()) {
+            if(entry.getValue() == 0L ) { 
+                return entry.getKey();                
+            }
+            if(entry.getValue() < lowestLoad) { 
+                lowestLoad = entry.getValue();
+                chosenOne = entry.getKey();
+            }
         }
-    }
-    
-
-    public static String chooseMachine(String request) {
         
-        return "TODO";
+        return chosenOne;
     }
     
-    private static String sendGet(String machineIP, String request) throws Exception {
+    private static String sendRequest(String machineIP, String request) throws Exception {
 
 		String url = machineIP+":8000/f.html?n="+request;
 		
@@ -142,11 +158,39 @@ public class LoadBalancer {
 
 	}
     
-    private static void addWebserver(String webserverIP) {
-        
-        synchronized(machinesInCluster) {
-            machinesInCluster.add(webserverIP);
+    
+
+    private static void initEC2Client() throws Exception {
+
+        AWSCredentials credentials = null;
+        try {
+            credentials = new ProfileCredentialsProvider().getCredentials();
+        } catch (Exception e) {
+            throw new AmazonClientException(
+                    "Cannot load the credentials from the credential profiles file. " +
+                    "Please make sure that your credentials file is at the correct " +
+                    "location (~/.aws/credentials), and is in valid format.",
+                    e);
         }
+        _ec2Client = new AmazonEC2Client(credentials);
+    }
+    
+    private static void updateInstanceInformation() {
+        
+        DescribeInstancesRequest request = new DescribeInstancesRequest();
+
+        DescribeInstancesResult result = _ec2Client.describeInstances( request );
+        List<Reservation> reservations = result.getReservations();
+
+        List<String> activeServers = new ArrayList<String>(); 
+        for (Reservation reservation : reservations) {
+            List<Instance> instances = reservation.getInstances();
+            for (Instance instance : instances) {
+                activeServers.add( instance.getPublicIpAddress() );
+            }
+        }
+        Set<String> keySet = _webservers.keySet();
+        keySet.retainAll( activeServers );
     }
 
 }
