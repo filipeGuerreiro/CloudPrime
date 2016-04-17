@@ -93,12 +93,11 @@ public class LoadBalancer {
             // send request to machine
             String response = "NOT FOUND";
             try {
-                Long currentLoad = _webservers.get( machineIP );
-                _webservers.replace( machineIP , currentLoad + RQST_INCREMENT );
-                
+                _webservers.put( machineIP, _webservers.get( machineIP ) + RQST_INCREMENT );
+
                 response = sendRequest( machineIP , request );
                 
-                _webservers.replace( machineIP , currentLoad );
+                _webservers.put( machineIP, _webservers.get( machineIP ) - RQST_INCREMENT );
             } catch(Exception e) { System.out.println("Failed to send request to webserver: " + e.toString()); }
             
             // send response back to requester
