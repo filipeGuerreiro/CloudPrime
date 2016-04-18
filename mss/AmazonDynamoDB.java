@@ -1,3 +1,5 @@
+package cloudprime.mss;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -38,41 +40,22 @@ import com.amazonaws.services.dynamodbv2.document.UpdateItemOutcome;
 
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
+import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBScanExpression;
+
 
 public class AmazonDynamoDB {
 
-    /*
-     * Before running the code:
-     *      Fill in your AWS access credentials in the provided credentials
-     *      file template, and be sure to move the file to the default location
-     *      (~/.aws/credentials) where the sample code will load the
-     *      credentials from.
-     *      https://console.aws.amazon.com/iam/home?#security_credential
-     *
-     * WARNING:
-     *      To avoid accidental leakage of your credentials, DO NOT keep
-     *      the credentials file in your source directory.
-     */
-
+    static DynamoDBMapper _dbMapper;
     static AmazonDynamoDBClient _dbClient;
     static DynamoDB _dynamoDB;
     
     private static final String TABLE_NAME = "metrics-table";
     private static final String ITEM_NAME  = "webserverIP";
-    private static final String ATTRB_NAME  = "threads";
+    private static final String ATTRB_NAME = "threads";
 
-    /**
-     * The only information needed to create a client are security credentials
-     * consisting of the AWS Access Key ID and Secret Access Key. All other
-     * configuration, such as the service endpoints, are performed
-     * automatically. Client parameters, such as proxies, can be specified in an
-     * optional ClientConfiguration object when constructing a client.
-     *
-     * @see com.amazonaws.auth.BasicAWSCredentials
-     * @see com.amazonaws.auth.ProfilesConfigFile
-     * @see com.amazonaws.ClientConfiguration
-     */
-    private static void init() throws Exception {
+    
+    public static void init() throws Exception {
 
         AWSCredentials credentials = null;
         try {
@@ -106,6 +89,7 @@ public class AmazonDynamoDB {
                 Tables.awaitTableToBecomeActive( _dbClient , TABLE_NAME );
             }
             _dynamoDB = new DynamoDB( _dbClient );
+            _dbMapper = new DynamoDBMapper( _dbClient );
         } catch (AmazonServiceException ase) {
             amazonServiceExceptionMessage(ase);
         } catch (AmazonClientException ace) {
@@ -199,6 +183,21 @@ public class AmazonDynamoDB {
         return outcome.getTableItems();
     }
     
+    
+    public static List<WebserverInfo> getAllMetrics() throws Exception {
+        
+        DynamoDBScanExpression scanExpression = new DynamoDBScanExpression();
+        
+        List<WebserverInfo> scanResult = _dbMapper.scan(WebserverInfo.class, scanExpression);
+        
+        for (WebserverInfo ws : scanResult) {
+            System.out.println(ws); // TODO
+        }
+        
+        return scanResult;
+    }
+    
+    
     /*
      * Print Amazon error message functions.
      */
@@ -218,5 +217,7 @@ public class AmazonDynamoDB {
                 + "such as not being able to access the network.");
         System.out.println("Error Message: " + ace.getMessage());
     }
+    
+    
 
 }

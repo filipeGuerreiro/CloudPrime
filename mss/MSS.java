@@ -1,3 +1,5 @@
+package cloudprime.mss;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.BufferedReader;
@@ -18,12 +20,24 @@ import java.util.concurrent.Executor;
 
 public class MSS {
     
-    private static AmazonDynamoDB amazonDB;
+    private static AmazonDynamoDB _amazonDB;
     
     public MSS() {
-        amazonDB = new AmazonDynamoDB();
+        _amazonDB = new AmazonDynamoDB();
+        try {
+            _amazonDB.init();
+        } catch(Exception e) { System.out.println("Failed to initialize dynamoDB: " + e.toString()); }
+    }
+    
+    public List<WebserverInfo> getAllMetrics() {
+        List<WebserverInfo> results = null;
+        try {
+            results = _amazonDB.getAllMetrics();
+        } catch(Exception e) { System.out.println("Failed to get all metrics: " + e.toString()); }
+        return results;
     }
 
+    /*
     public static void main(String[] args) throws Exception {
         // requests as <this_ip>:8010/<server_ip>/metric?<metric>
         HttpServer server = HttpServer.create(new InetSocketAddress(8010), 0);
@@ -65,5 +79,5 @@ public class MSS {
             os.close();
         }
     }
-
+    */
 }

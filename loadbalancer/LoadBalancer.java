@@ -1,3 +1,5 @@
+package cloudprime.loadbalancer;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.BufferedReader;
@@ -34,22 +36,27 @@ import com.amazonaws.services.ec2.model.DescribeInstancesResult;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 
+import mss.*;
+
 public class LoadBalancer {
+        
+    private static Map<String, Long> _webservers = Collections.synchronizedMap(new HashMap<String, Long>());
+    
+    // client used for checking how many webservers are running and what their IP is
+    private static MSS _mss;
+    // when a request comes, update the load by this amount while we don't query the MSS
+    private static final long RQST_INCREMENT = 1000L; 
     
     private static final int UPDATE_INFO_PERIOD = 15 * 1000; // 15 seconds   
     private static Timer _updateTimer = new Timer();
-    
-    // client used for checking how many webservers are running and what their IP is
-    private static AmazonEC2 _ec2Client;
-    // when a request comes, update the load by this amount while we don't know the MSS stored load
-    private static final long RQST_INCREMENT = 1000L; 
-    
-    private static Map<String, Long> _webservers = Collections.synchronizedMap(new HashMap<String, Long>());
 
 
     public static void main(String[] args) throws Exception {
         
-        initEC2Client();
+        // initEC2Client();
+        _mss = new MSS();
+        
+        // set timer to get webserver ips and loads periodically
         _updateTimer.schedule(new TimerTask() {
             @Override
             public void run() {
@@ -93,11 +100,16 @@ public class LoadBalancer {
             // send request to machine
             String response = "NOT FOUND";
             try {
+                // mark the increase of load for this machine
+                long load = _webservers.get( machineIP ) + RQST_INCREMENT;
                 _webservers.put( machineIP, _webservers.get( machineIP ) + RQST_INCREMENT );
 
                 response = sendRequest( machineIP , request );
                 
-                _webservers.put( machineIP, _webservers.get( machineIP ) - RQST_INCREMENT );
+                // checks if the value was not changed in the meantime by the mss update
+                if(_webservers.get( machineIP ) == load) { 
+                    _webservers.put( machineIP, load - RQST_INCREMENT );
+                }
             } catch(Exception e) { System.out.println("Failed to send request to webserver: " + e.toString()); }
             
             // send response back to requester
@@ -175,6 +187,16 @@ public class LoadBalancer {
     }
     
     private static void updateInstanceInformation() {
+        List<String> activeServers = new ArrayList<String>(); 
+        
+        // TODO
+        
+        Set<String> keySet = _webservers.keySet();
+        keySet.retainAll( activeServers );
+    }
+    
+    /*
+    private static void updateInstanceInformation() {
         
         DescribeInstancesRequest request = new DescribeInstancesRequest();
 
@@ -191,5 +213,5 @@ public class LoadBalancer {
         Set<String> keySet = _webservers.keySet();
         keySet.retainAll( activeServers );
     }
-
+    */
 }
