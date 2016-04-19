@@ -1,4 +1,4 @@
-package cloudprime.mss;
+package mss;
 
 import java.util.Map;
 

@@ -1,4 +1,4 @@
-package cloudprime.loadbalancer;
+package loadbalancer;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -127,7 +127,7 @@ public class LoadBalancer {
         String chosenOne = "";
         long lowestLoad = Long.MAX_VALUE;
         for (Map.Entry<String, Long> entry : _webservers.entrySet()) {
-            if(entry.getValue() == 0L ) { 
+            if(entry.getValue() == 0L) { 
                 return entry.getKey();                
             }
             if(entry.getValue() < lowestLoad) { 
@@ -168,9 +168,25 @@ public class LoadBalancer {
         return response.toString();
 
 	}
+   
     
+    private static void updateInstanceInformation() {
+        List<String> activeServers = new ArrayList<String>(); 
+        
+        List<WebserverInfo> result = _mss.getAllMetrics();
+        for(WebserverInfo ws : result) {            
+            long totalLoad = 0L;
+            for(long threadLoad: ws.getMetrics().values()) { totalLoad += threadLoad; }
+            _webservers.put( ws.getWebserverIP() , totalLoad );
+            
+            activeServers.add( ws.getWebserverIP() );
+        }
+        
+        Set<String> keySet = _webservers.keySet();
+        keySet.retainAll( activeServers );
+    }
     
-
+    /*
     private static void initEC2Client() throws Exception {
 
         AWSCredentials credentials = null;
@@ -186,16 +202,6 @@ public class LoadBalancer {
         _ec2Client = new AmazonEC2Client(credentials);
     }
     
-    private static void updateInstanceInformation() {
-        List<String> activeServers = new ArrayList<String>(); 
-        
-        // TODO
-        
-        Set<String> keySet = _webservers.keySet();
-        keySet.retainAll( activeServers );
-    }
-    
-    /*
     private static void updateInstanceInformation() {
         
         DescribeInstancesRequest request = new DescribeInstancesRequest();

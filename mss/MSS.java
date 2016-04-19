@@ -1,4 +1,4 @@
-package cloudprime.mss;
+package mss;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -8,6 +8,9 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.Inet4Address;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -17,10 +20,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
 import java.util.concurrent.Executor;
+import java.util.Enumeration;
+
 
 public class MSS {
     
-    private static AmazonDynamoDB _amazonDB;
+    private static AmazonDynamoDB _amazonDB = null;
+    
+    private static String _publicIP = null;
     
     public MSS() {
         _amazonDB = new AmazonDynamoDB();
@@ -29,12 +36,68 @@ public class MSS {
         } catch(Exception e) { System.out.println("Failed to initialize dynamoDB: " + e.toString()); }
     }
     
+    public void initMetricStorage() {
+        _publicIP = getPublicIpAddress();
+        _amazonDB.putItem( _publicIP );
+        attachShutdownHook();
+    }
+    
     public List<WebserverInfo> getAllMetrics() {
         List<WebserverInfo> results = null;
         try {
             results = _amazonDB.getAllMetrics();
         } catch(Exception e) { System.out.println("Failed to get all metrics: " + e.toString()); }
         return results;
+    }
+    
+    public void updateMetrics(long threadID, long metric) {
+        _amazonDB.updateThread( _publicIP , String.valueOf( threadID ) , String.valueOf( metric ) );
+    }
+    
+    public void removeMetrics(long threadID) {
+        _amazonDB.removeThread( _publicIP , String.valueOf( threadID ) );
+    }
+    
+    private String getPublicIpAddress() {
+        String res = null;
+        try {
+            String localhost = InetAddress.getLocalHost().getHostAddress();
+            Enumeration<NetworkInterface> e = NetworkInterface.getNetworkInterfaces();
+            while (e.hasMoreElements()) {
+                NetworkInterface ni = (NetworkInterface) e.nextElement();
+                if(ni.isLoopback())
+                    continue;
+                if(ni.isPointToPoint())
+                    continue;
+                Enumeration<InetAddress> addresses = ni.getInetAddresses();
+                while(addresses.hasMoreElements()) {
+                    InetAddress address = (InetAddress) addresses.nextElement();
+                    if(address instanceof Inet4Address) {
+                        String ip = address.getHostAddress();
+                        if(!ip.equals(localhost))
+                            res = ip;
+                            //System.out.println((res = ip));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return res;
+    }
+    
+    // When the program receives a SIGTERM signal (due to autoscaler perhaps), remove its info from dynamoDB
+    private void attachShutdownHook() {
+        
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                System.out.println("SHUTDOWN HOOK RAN!");
+                if( _publicIP != null ) { 
+                    _amazonDB.deleteItem( _publicIP );
+                }
+            }
+        });
     }
 
     /*

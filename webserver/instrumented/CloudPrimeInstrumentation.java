@@ -9,37 +9,24 @@ import java.util.Timer;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import mss.*;
 
 public class CloudPrimeInstrumentation {
     
-    private static final int MAX_THREADS  = 256;
-    private static final long TIMER_PERIOD = (7 * 1000L); // 7 seconds
+    private static final int  MAX_THREADS      = 2048;
+    private static final long METRIC_THRESHOLD = 1000000000L;
     
     private static PrintStream out = null;
     
     // locks for accessing the instrumentation metrics thread-safely
-    private static Lock[] _mutex = new Lock[MAX_THREADS];
-    static { Arrays.fill(_mutex, new ReentrantLock(true)); }
+    //private static Lock[] _mutex = new Lock[MAX_THREADS];
+    //static { Arrays.fill(_mutex, new ReentrantLock(true)); }
     
     // instrumentation metrics
-    private static long[] _startTime = new long[MAX_THREADS]; // default init = 0 TODO: REMOVE 
+    private static long[] _startTime = new long[MAX_THREADS]; // default init = 0
     private static long[] _loadcount = new long[MAX_THREADS]; // default init = 0
     
-    // timers that periodically send metrics to MSS
-    private static Timer[] _timer = new Timer[MAX_THREADS];
-    static { Arrays.fill(_timer, new Timer()); }
-    
-    private class MyTimerTask extends TimerTask {
-        private long threadId;
-        MyTimerTask(long threadId) { this.threadId = threadId; }
-        
-        @Override
-        public void run() {
-            sendMetrics( this.threadId );
-        }
-    }
-    private static MyTimerTask _timerTask = new MyTimerTask[MAX_THREADS];
-    
+    private static MSS _mss;
     
     /* main reads in all the files class files present in the input directory,
      * instruments only IntFactorization, and outputs it to the specified output directory.
@@ -51,7 +38,7 @@ public class CloudPrimeInstrumentation {
         for (int i = 0; i < infilenames.length; i++) {
             String infilename = infilenames[i];
             
-            if (infilename.equals("IntFactorization.class")) { // WebServer.class
+            if (infilename.equals("IntFactorization.class")) { 
 				// create class info object
 				ClassInfo ci = new ClassInfo(argv[0] + System.getProperty("file.separator") + infilename);
 				
@@ -76,10 +63,27 @@ public class CloudPrimeInstrumentation {
                     
                     // when calcPrimeFactors finishes, method factorize is called and prints result to file
                     else if(routine.getMethodName().equals("factorize")) {
-                        routine.addBefore("CloudPrimeInstrumentation", "startTimer", 0);
+                        routine.addBefore("CloudPrimeInstrumentation", "acquireLocks", 0);
                         
-                        routine.addAfter("CloudPrimeInstrumentation", "endTimer", 0);
-                        //routine.addAfter("CloudPrimeInstrumentation", "printICount", 0);
+                        routine.addAfter("CloudPrimeInstrumentation", "releaseLocks", 0);
+                    }
+                }
+                
+                // create instrumented .class
+                ci.write(argv[1] + System.getProperty("file.separator") + infilename);
+            }
+            
+            // instrument webserver class main method for MSS init
+            if (infilename.equals("WebServer.class")) { 
+				
+				ClassInfo ci = new ClassInfo(argv[0] + System.getProperty("file.separator") + infilename);
+				
+                // loop through all the routines
+                for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
+                    Routine routine = (Routine) e.nextElement();
+                    
+                    if(routine.getMethodName().equals("main")) {
+                        routine.addAfter("CloudPrimeInstrumentation", "initMSS", 0);
                     }
                 }
                 
@@ -89,60 +93,72 @@ public class CloudPrimeInstrumentation {
         }
     }
     
-    // acquires locks here
-    public static void startTimer(int nil) {
+
+    public static void acquireLocks(int nil) {
         long threadId = Thread.currentThread().getId();
         int index = getIndex(threadId);
         
-        _mutex[index].lock();
-        _timerTask[index] = new MyTimerTask(threadId);
-        _timer[index].schedule(_timerTask[index], 0L, TIMER_PERIOD);
+        //_mutex[index].lock();
+        
+        _loadcount[index] = 0;
+        _startTime[index] = System.currentTimeMillis();
     }
     
-    // releases locks here
-    public static void endTimer(int nil) {
+
+    public static void releaseLocks(int nil) {
         long threadId = Thread.currentThread().getId();
-        int index = getIndex(threadId);
-        
-        // stop timer
-        _timerTask[index].cancel();
+        int index = getIndex( threadId );
         
         // remove metrics from mss
-        removeMetrics(threadId);
+        removeMetrics( threadId );
         
         // release locks
         _loadcount[index] = 0;
-        _mutex[index].unlock();
+        _startTime[index] = 0;
+        //_mutex[index].unlock();
     }
     
-    // always called after startTimer
+    // always called after acquireLocks
 	public static void LSCount(int nil) {
         long threadId = Thread.currentThread().getId();
         
-        _loadcount[getIndex(threadId)]++;
+        long loadCount = _loadcount[ getIndex( threadId ) ]++;
+        if(loadCount > METRIC_THRESHOLD) { sendMetrics( loadCount ); }
 	}
     
-    // print ID of thread <- finds out how many requests are being handled by this server
-    // print how long the request has been running
-    public static void printICount(int nil) {
+    private static void sendMetrics(long loadCount) {
         long threadId = Thread.currentThread().getId();
         int index = getIndex(threadId);
-        
         long endTime = System.currentTimeMillis();
-        long duration = (endTime - _startTime[index]); // milliseconds
+        long duration = (endTime - _startTime[index]);
         
-        long load = _loadcount[index] / duration;
-        
-        String result = "Thread " + threadId + " || load " + load;
-        
-        // release locks here
+        long load =  loadCount / duration;
         _loadcount[index] = 0;
-        _startTime[index] = 0;
-        _mutex[index].unlock();
-
-        // synchronized method
-        writeToFile(result);
+        _startTime[index] = endTime;
+        
+        // send metrics to dynamoDB
+        // String result = "Thread " + threadId + " || load " + load;
+        _mss.updateMetrics( threadId , load );
+        
     }
+    
+    private static void removeMetrics(long threadId) {
+        int index = getIndex(threadId);
+        
+        // remove metrics from dynamoDB
+        _mss.removeMetrics( threadId );
+    }
+    
+    private static int getIndex(long id) {
+        return (int) id % MAX_THREADS;
+    }
+    
+    
+    public static void initMSS(int nil) {
+        _mss = new MSS();
+        _mss.initMetricStorage();
+    }
+    
     
     private static synchronized void writeToFile(String text) {
         File file = new File("metrics.txt");
@@ -155,28 +171,6 @@ public class CloudPrimeInstrumentation {
         } finally {
             if (writer != null) try { writer.close(); } catch (IOException ignore) {}
         }
-    }
-    
-    private static void sendMetrics(long threadId) {
-        int index = getIndex(threadId);
-        
-        double metric =  _loadcount[index] / (double) TIMER_PERIOD;
-        _loadcount[index] = 0;
-        
-        // TODO
-        
-    }
-    
-    private static void removeMetrics(long threadId) {
-        int index = getIndex(threadId);
-        
-        _loadcount[index] = 0;
-        // TODO
-        
-    }
-    
-    private static int getIndex(long id) {
-        return (int) id % MAX_THREADS;
     }
     
 }

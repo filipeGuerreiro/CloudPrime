@@ -16,21 +16,7 @@ public class IntFactorization {
   // wrapper method for calcPrimeFactors
   // makes it possible to add instrumentation when calcPrimeFactors finishes
   ArrayList<BigInteger> factorize(BigInteger num) {
-      
     ArrayList<BigInteger> result = calcPrimeFactors(num);
-    
-    // prints the requested number to file
-    File file = new File("metrics.txt");
-    FileWriter writer = null;
-    try {
-        writer = new FileWriter(file, true); // true for append mode
-        writer.write("JOB " + num.toString() + System.lineSeparator());
-    } catch (IOException e) {
-        e.printStackTrace();
-    } finally {
-        if (writer != null) try { writer.close(); } catch (IOException ignore) {}
-    }
-      
     return result;
   }
 
