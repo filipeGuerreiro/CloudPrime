@@ -146,7 +146,7 @@ public class CloudPrimeInstrumentation {
         int index = getIndex(threadId);
         
         // remove metrics from dynamoDB
-        _mss.removeMetrics( threadId );
+        //_mss.removeMetrics( threadId ); // TODO BUG HERE!
     }
     
     private static int getIndex(long id) {

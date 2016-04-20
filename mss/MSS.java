@@ -55,6 +55,7 @@ public class MSS {
     }
     
     public void removeMetrics(long threadID) {
+        //System.out.println("removeMetrics "+_publicIP + " "+ threadID);
         _amazonDB.removeThread( _publicIP , String.valueOf( threadID ) );
     }
     

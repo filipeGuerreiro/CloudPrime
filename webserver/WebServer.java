@@ -44,15 +44,19 @@ public final class WebServer {
             String request = requestedUri.getQuery();
             String[] parts = request.split("n=");
             request = parts[1];
+            System.out.println("Got request: "+request);
                         
             // factorize number
             BigInteger requestedNumber = new BigInteger(request);
-            ArrayList<BigInteger> result = new IntFactorization().factorize(requestedNumber);           
+            ArrayList<BigInteger> result = new IntFactorization().factorize(requestedNumber);            
             
             // craft response
             String response = "";
+            int i = 0;
             for (BigInteger s : result) {
-                response += s.toString() + "\n";
+                response += s.toString();
+                if(++i % 25 == 0) { response += "\n"; }
+                else response += " ";
             }
             t.sendResponseHeaders(200, response.length());
             

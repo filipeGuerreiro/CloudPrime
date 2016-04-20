@@ -142,7 +142,7 @@ public class AmazonDynamoDB {
         Table table = _dynamoDB.getTable( TABLE_NAME );
         
         Map<String, String> expressionAttributeNames = new HashMap<String, String>();
-        expressionAttributeNames.put( "#A", threadID ); // access map element, e.g. threads.16 : <metric>
+        expressionAttributeNames.put( "#A", threadID ); 
         
         Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
         expressionAttributeValues.put(":val1", load);
@@ -150,7 +150,7 @@ public class AmazonDynamoDB {
         UpdateItemOutcome outcome =  table.updateItem(
             PRIMARY_KEY,
             webserverIP,
-            "set " + ATTRB_NAME + ".#A = :val1", // UpdateExpression
+            "set " + ATTRB_NAME + ".#A = :val1", // UpdateExpression: update map element, e.g. set threads.16 := <metric>
             expressionAttributeNames,
             expressionAttributeValues);
     }
@@ -159,14 +159,14 @@ public class AmazonDynamoDB {
         Table table = _dynamoDB.getTable( TABLE_NAME );
         
         Map<String, String> expressionAttributeNames = new HashMap<String, String>();
-        expressionAttributeNames.put( "#A", threadID ); // access map element, e.g. threads.16 : <metric>
-        
+        expressionAttributeNames.put( "#A", threadID );
+        System.out.println("removeThread " + webserverIP + " " + threadID);
         UpdateItemOutcome outcome =  table.updateItem(
             PRIMARY_KEY,
             webserverIP,
-            "remove " + ATTRB_NAME + ".#A", // UpdateExpression
-            expressionAttributeNames,
-            expressionAttributeValues);
+            "delete " + ATTRB_NAME + " :#A", // UpdateExpression: delete map element, e.g. delete threads 16
+            expressionAttributeNames);
+        System.out.println(outcome.toString());
     }
     
     /*

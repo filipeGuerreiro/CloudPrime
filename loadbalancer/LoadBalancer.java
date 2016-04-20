@@ -39,6 +39,8 @@ import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import mss.*;
 
 public class LoadBalancer {
+    
+    private static final int SERVER_PORT = 9000;
         
     private static Map<String, Long> _webservers = Collections.synchronizedMap(new HashMap<String, Long>());
     
@@ -47,7 +49,7 @@ public class LoadBalancer {
     // when a request comes, update the load by this amount while we don't query the MSS
     private static final long RQST_INCREMENT = 1000L; 
     
-    private static final int UPDATE_INFO_PERIOD = 15 * 1000; // 15 seconds   
+    private static final int UPDATE_INFO_PERIOD = 10 * 1000; // 10 seconds   
     private static Timer _updateTimer = new Timer();
 
 
@@ -62,12 +64,12 @@ public class LoadBalancer {
             public void run() {
                 updateInstanceInformation();
             }
-        }, UPDATE_INFO_PERIOD);
+        }, 0, UPDATE_INFO_PERIOD);
         
         // open socket on port 8000 which expects requests as <IP>:8000/f.html?n=<requestNumber>
-        HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress( SERVER_PORT ), 0);
         server.createContext("/", new ReceiveRequestHandler());
-        System.out.println("LB: Receiving requests at port 8000");
+        System.out.println("LB: Receiving requests at port "+String.valueOf( SERVER_PORT ));
         
         // create a multi-threaded executor
         server.setExecutor(new ThreadPerTaskExecutor());
@@ -92,25 +94,30 @@ public class LoadBalancer {
             String[] parts = request.split("n=");
             request = parts[1];
             
-            // estimate the duration of the request based on parameter and mss data
-            
-            // choose which machine will handle the request
-            String machineIP = chooseMachine();
             
             // send request to machine
-            String response = "NOT FOUND";
-            try {
-                // mark the increase of load for this machine
-                long load = _webservers.get( machineIP ) + RQST_INCREMENT;
-                _webservers.put( machineIP, _webservers.get( machineIP ) + RQST_INCREMENT );
-
-                response = sendRequest( machineIP , request );
-                
-                // checks if the value was not changed in the meantime by the mss update
-                if(_webservers.get( machineIP ) == load) { 
-                    _webservers.put( machineIP, load - RQST_INCREMENT );
+            String response = "";
+            int attempts = 0;
+            do {
+                attempts++;
+                // choose which machine will handle the request
+                String machineIP = chooseMachine(); System.out.println( "Picked machine: " + machineIP );
+                try {
+                    // mark the increase of load for this machine
+                    long load = _webservers.getOrDefault( machineIP , 0L ) + RQST_INCREMENT;
+                    _webservers.put( machineIP, _webservers.get( machineIP ) + RQST_INCREMENT );
+                    
+                    response = sendRequest( machineIP , request );
+                    
+                    // checks if the value was not changed in the meantime by the mss update
+                    if(_webservers.get( machineIP ) == load) { 
+                        _webservers.put( machineIP, load - RQST_INCREMENT );
+                    }
+                } catch(Exception e) { 
+                    _webservers.remove( machineIP ); if(attempts > 5) { response = "AVAILABLE MACHINE NOT FOUND.\nPLEASE TRY AGAIN LATER."; break; }
+                    // System.out.println("Failed to send request to "+machineIP+": " + e.toString());
                 }
-            } catch(Exception e) { System.out.println("Failed to send request to webserver: " + e.toString()); }
+            } while(response.equals(""));
             
             // send response back to requester
             t.sendResponseHeaders(200, response.length());
@@ -138,37 +145,7 @@ public class LoadBalancer {
         
         return chosenOne;
     }
-    
-    private static String sendRequest(String machineIP, String request) throws Exception {
-
-		String url = machineIP+":8000/f.html?n="+request;
-		
-		URL obj = new URL(url);
-		HttpURLConnection con = (HttpURLConnection) obj.openConnection();
-
-		// optional default is GET
-		con.setRequestMethod("GET");
-
-		int responseCode = con.getResponseCode();
-		System.out.println("\nSending 'GET' request to URL : " + url);
-		System.out.println("Response Code : " + responseCode);
-
-		BufferedReader in = new BufferedReader(
-		        new InputStreamReader(con.getInputStream()));
-		String inputLine;
-		StringBuffer response = new StringBuffer();
-
-		while ((inputLine = in.readLine()) != null) {
-			response.append(inputLine);
-		}
-		in.close();
-
-		//print result
-		System.out.println(response.toString());
-        return response.toString();
-
-	}
-   
+      
     
     private static void updateInstanceInformation() {
         List<String> activeServers = new ArrayList<String>(); 
@@ -176,7 +153,7 @@ public class LoadBalancer {
         List<WebserverInfo> result = _mss.getAllMetrics();
         for(WebserverInfo ws : result) {            
             long totalLoad = 0L;
-            for(long threadLoad: ws.getMetrics().values()) { totalLoad += threadLoad; }
+            for(String threadLoad: ws.getMetrics().values()) { totalLoad += Long.parseLong( threadLoad ); }
             _webservers.put( ws.getWebserverIP() , totalLoad );
             
             activeServers.add( ws.getWebserverIP() );
@@ -185,6 +162,32 @@ public class LoadBalancer {
         Set<String> keySet = _webservers.keySet();
         keySet.retainAll( activeServers );
     }
+    
+    
+    private static String sendRequest(String machineIP, String request) throws Exception {
+
+		String url = machineIP+":8000/f.html?n="+request;
+        
+		URL obj = new URL("http", machineIP, 8000, "/f.html?n="+request); 
+		HttpURLConnection con = (HttpURLConnection) obj.openConnection();
+  
+		// optional default is GET
+		con.setRequestMethod("GET");
+
+		int responseCode = con.getResponseCode();
+
+		BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+        String inputLine;
+		StringBuffer response = new StringBuffer();
+		while ((inputLine = in.readLine()) != null) {
+			response.append(inputLine);
+            System.out.println(inputLine);
+		}
+		in.close();
+
+        return response.toString();
+
+	}
     
     /*
     private static void initEC2Client() throws Exception {
