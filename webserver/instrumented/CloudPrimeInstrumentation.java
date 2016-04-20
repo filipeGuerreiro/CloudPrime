@@ -23,8 +23,9 @@ public class CloudPrimeInstrumentation {
     //static { Arrays.fill(_mutex, new ReentrantLock(true)); }
     
     // instrumentation metrics
-    private static long[] _startTime = new long[MAX_THREADS]; // default init = 0
-    private static long[] _loadcount = new long[MAX_THREADS]; // default init = 0
+    private static long[] _startTime      = new long[MAX_THREADS]; // default init = 0
+    private static long[] _loadcount      = new long[MAX_THREADS]; // default init = 0
+    private static long[] _registeredLoad = new long[MAX_THREADS]; // default init = 0
     
     private static MSS _mss;
     
@@ -100,7 +101,7 @@ public class CloudPrimeInstrumentation {
         
         //_mutex[index].lock();
         
-        _loadcount[index] = 0;
+        _loadcount[index] = 0L;
         _startTime[index] = System.currentTimeMillis();
     }
     
@@ -113,8 +114,8 @@ public class CloudPrimeInstrumentation {
         removeMetrics( threadId );
         
         // release locks
-        _loadcount[index] = 0;
-        _startTime[index] = 0;
+        _loadcount[index] = 0L;
+        _startTime[index] = 0L;
         //_mutex[index].unlock();
     }
     
@@ -133,20 +134,25 @@ public class CloudPrimeInstrumentation {
         long duration = (endTime - _startTime[index]);
         
         long load =  loadCount / duration;
-        _loadcount[index] = 0;
+        System.out.println("Update metrics: "+load);
+        _loadcount[index] = 0L;
         _startTime[index] = endTime;
         
         // send metrics to dynamoDB
-        // String result = "Thread " + threadId + " || load " + load;
-        _mss.updateMetrics( threadId , load );
+        if(_registeredLoad[index] == 0L) { _mss.updateMetrics( load ); }
+        else { _mss.updateMetrics( load - _registeredLoad[index] ); }
         
+        _registeredLoad[index] = load;
     }
     
     private static void removeMetrics(long threadId) {
         int index = getIndex(threadId);
         
         // remove metrics from dynamoDB
-        //_mss.removeMetrics( threadId ); // TODO BUG HERE!
+        if(_registeredLoad[index] != 0L) {
+            _mss.updateMetrics( _registeredLoad[index] * -1 );
+            _registeredLoad[index] = 0L;
+        }
     }
     
     private static int getIndex(long id) {

@@ -22,7 +22,9 @@ import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.Enumeration;
 
-
+/**
+ * Class used by both the webserver and load balancer to communicate with dynamoDB
+ */
 public class MSS {
     
     private static AmazonDynamoDB _amazonDB = null;
@@ -36,12 +38,14 @@ public class MSS {
         } catch(Exception e) { System.out.println("Failed to initialize dynamoDB: " + e.toString()); }
     }
     
+    // Used by the webserver to set-up dynamoDB info
     public void initMetricStorage() {
         _publicIP = getPublicIpAddress();
         _amazonDB.putItem( _publicIP );
         attachShutdownHook();
     }
     
+    // Used by load balancer to obtain all webserver info in dynamoDB
     public List<WebserverInfo> getAllMetrics() {
         List<WebserverInfo> results = null;
         try {
@@ -50,15 +54,13 @@ public class MSS {
         return results;
     }
     
-    public void updateMetrics(long threadID, long metric) {
-        _amazonDB.updateThread( _publicIP , String.valueOf( threadID ) , String.valueOf( metric ) );
+    // Used by the webserver to update the total load across threads
+    public void updateMetrics(long load) {
+        //_amazonDB.updateThread( _publicIP , String.valueOf( threadID ) , String.valueOf( metric ) );
+        _amazonDB.updateMetrics( _publicIP , load );
     }
-    
-    public void removeMetrics(long threadID) {
-        //System.out.println("removeMetrics "+_publicIP + " "+ threadID);
-        _amazonDB.removeThread( _publicIP , String.valueOf( threadID ) );
-    }
-    
+
+    // Finds out this machine's IP address so that it can register it in the dynamoDB
     private String getPublicIpAddress() {
         String res = null;
         try {
@@ -87,7 +89,7 @@ public class MSS {
         return res;
     }
     
-    // When the program receives a SIGTERM signal (due to autoscaler perhaps), remove its info from dynamoDB
+    // When the webserver receives a SIGTERM signal (due to autoscaler perhaps), remove its info from dynamoDB
     private void attachShutdownHook() {
         
         Runtime.getRuntime().addShutdownHook(new Thread() {

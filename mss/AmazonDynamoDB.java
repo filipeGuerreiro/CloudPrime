@@ -52,7 +52,7 @@ public class AmazonDynamoDB {
     
     private static final String TABLE_NAME  = "metrics-table";
     private static final String PRIMARY_KEY = "webserverIP";
-    private static final String ATTRB_NAME  = "threads";
+    private static final String ATTRB_NAME  = "load";
 
     
     public static void init() throws Exception {
@@ -97,19 +97,7 @@ public class AmazonDynamoDB {
         }
     }
     
-    /*
-     * Search for metrics in 'webserverIP'.
-     */
-    public static void searchDB(String webserverIP) throws AmazonServiceException, AmazonClientException {
-        HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
-        Condition condition = new Condition()
-            .withComparisonOperator(ComparisonOperator.EQ.toString())
-            .withAttributeValueList(new AttributeValue().withS( webserverIP ));
-        scanFilter.put( PRIMARY_KEY , condition);
-        ScanRequest scanRequest = new ScanRequest( TABLE_NAME ).withScanFilter(scanFilter);
-        ScanResult scanResult = _dbClient.scan(scanRequest);
-        System.out.println("Result: " + scanResult);
-    }
+
     
     /*
      * Create new item into db when new webserver joins.
@@ -119,7 +107,8 @@ public class AmazonDynamoDB {
         
         Item item = new Item()
             .withPrimaryKey( PRIMARY_KEY , webserverIP )
-            .withMap( ATTRB_NAME , new HashMap<String, String>() );
+            //.withMap( ATTRB_NAME , new HashMap<String, String>() )
+            .withNumber( ATTRB_NAME , 0 ); 
         PutItemOutcome outcome = table.putItem( item );
         
         outcome.getPutItemResult();
@@ -134,15 +123,13 @@ public class AmazonDynamoDB {
         DeleteItemOutcome outcome = table.deleteItem( PRIMARY_KEY , webserverIP );
     }
     
-    /*
-     * Update thread load periodically.
-     * Used by webserver.
-     */
-    public static void updateThread(String webserverIP, String threadID, String load) {
+
+    
+    public static void updateMetrics(String webserverIP, long load) {
         Table table = _dynamoDB.getTable( TABLE_NAME );
         
         Map<String, String> expressionAttributeNames = new HashMap<String, String>();
-        expressionAttributeNames.put( "#A", threadID ); 
+        expressionAttributeNames.put( "#A", ATTRB_NAME ); 
         
         Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
         expressionAttributeValues.put(":val1", load);
@@ -150,64 +137,26 @@ public class AmazonDynamoDB {
         UpdateItemOutcome outcome =  table.updateItem(
             PRIMARY_KEY,
             webserverIP,
-            "set " + ATTRB_NAME + ".#A = :val1", // UpdateExpression: update map element, e.g. set threads.16 := <metric>
+            "set #A = #A + :val1", // UpdateExpression
             expressionAttributeNames,
             expressionAttributeValues);
     }
     
-    public static void removeThread(String webserverIP, String threadID) {
-        Table table = _dynamoDB.getTable( TABLE_NAME );
-        
-        Map<String, String> expressionAttributeNames = new HashMap<String, String>();
-        expressionAttributeNames.put( "#A", threadID );
-        System.out.println("removeThread " + webserverIP + " " + threadID);
-        UpdateItemOutcome outcome =  table.updateItem(
-            PRIMARY_KEY,
-            webserverIP,
-            "delete " + ATTRB_NAME + " :#A", // UpdateExpression: delete map element, e.g. delete threads 16
-            expressionAttributeNames);
-        System.out.println(outcome.toString());
-    }
-    
-    /*
-     * Get the load value for a specific thread.
-     * Used by webserver ? TODO
-     */
-    public static void getItem(String webserverIP, String threadID) {
-        GetItemSpec spec = new GetItemSpec()
-            .withPrimaryKey( PRIMARY_KEY , webserverIP )
-            .withProjectionExpression( ATTRB_NAME + "." + threadID ) 
-            .withConsistentRead( false );
-
-        Table table = _dynamoDB.getTable( TABLE_NAME );
-        Item item = table.getItem(spec);
-    }
     
     /*
      * Gets all the load values from each thread for that webserver. 
      * Used by loadbalancer to determine total load on that webserver.
-     */
-    public static Map<String,List<Item>> getMetrics(Object... webserverIPs) {
-        TableKeysAndAttributes forumTableKeysAndAttributes = new TableKeysAndAttributes( TABLE_NAME )
-            .withProjectionExpression( ATTRB_NAME );
-
-        forumTableKeysAndAttributes.addHashOnlyPrimaryKeys( PRIMARY_KEY , webserverIPs );
-        BatchGetItemOutcome outcome = _dynamoDB.batchGetItem(forumTableKeysAndAttributes);
-        
-        return outcome.getTableItems();
-    }
-    
-    
+     */    
     public static List<WebserverInfo> getAllMetrics() throws Exception {
         
         DynamoDBScanExpression scanExpression = new DynamoDBScanExpression();
         
         List<WebserverInfo> scanResult = _dbMapper.scan(WebserverInfo.class, scanExpression);
-        
+        /*
         for (WebserverInfo ws : scanResult) {
-            System.out.println(ws); // TODO
+            System.out.println(ws);
         }
-        
+        */
         return scanResult;
     }
     
@@ -233,5 +182,53 @@ public class AmazonDynamoDB {
     }
     
     
-
+    /*
+    
+    // Search for metrics in 'webserverIP'.
+    
+    public static void searchDB(String webserverIP) throws AmazonServiceException, AmazonClientException {
+        HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
+        Condition condition = new Condition()
+            .withComparisonOperator(ComparisonOperator.EQ.toString())
+            .withAttributeValueList(new AttributeValue().withS( webserverIP ));
+        scanFilter.put( PRIMARY_KEY , condition);
+        ScanRequest scanRequest = new ScanRequest( TABLE_NAME ).withScanFilter(scanFilter);
+        ScanResult scanResult = _dbClient.scan(scanRequest);
+        System.out.println("Result: " + scanResult);
+    }
+    
+    // Update thread load periodically.
+    // Used by webserver.
+    public static void updateThread(String webserverIP, String threadID, String load) {
+        Table table = _dynamoDB.getTable( TABLE_NAME );
+        
+        Map<String, String> expressionAttributeNames = new HashMap<String, String>();
+        expressionAttributeNames.put( "#A", threadID ); 
+        
+        Map<String, Object> expressionAttributeValues = new HashMap<String, Object>();
+        expressionAttributeValues.put(":val1", load);
+        
+        UpdateItemOutcome outcome =  table.updateItem(
+            PRIMARY_KEY,
+            webserverIP,
+            "set " + ATTRB_NAME + ".#A = :val1", // UpdateExpression: update map element, e.g. set threads.16 := <metric>
+            expressionAttributeNames,
+            expressionAttributeValues);
+    }
+    
+    // BUG HERE -- probably in UpdateExpression
+    public static void removeThread(String webserverIP, String threadID) {
+        Table table = _dynamoDB.getTable( TABLE_NAME );
+        
+        Map<String, String> expressionAttributeNames = new HashMap<String, String>();
+        expressionAttributeNames.put( "#A", threadID );
+        System.out.println("removeThread " + webserverIP + " " + threadID);
+        UpdateItemOutcome outcome =  table.updateItem(
+            PRIMARY_KEY,
+            webserverIP,
+            "delete " + ATTRB_NAME + " :#A", // UpdateExpression: delete map element, e.g. delete threads 16
+            expressionAttributeNames);
+        System.out.println(outcome.toString());
+    }
+    */
 }

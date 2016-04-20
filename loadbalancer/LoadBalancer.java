@@ -40,7 +40,7 @@ import mss.*;
 
 public class LoadBalancer {
     
-    private static final int SERVER_PORT = 9000;
+    private static final int SERVER_PORT = 80;
         
     private static Map<String, Long> _webservers = Collections.synchronizedMap(new HashMap<String, Long>());
     
@@ -49,7 +49,7 @@ public class LoadBalancer {
     // when a request comes, update the load by this amount while we don't query the MSS
     private static final long RQST_INCREMENT = 1000L; 
     
-    private static final int UPDATE_INFO_PERIOD = 10 * 1000; // 10 seconds   
+    private static final int UPDATE_INFO_PERIOD = 15 * 1000; // 15 seconds   
     private static Timer _updateTimer = new Timer();
 
 
@@ -66,7 +66,7 @@ public class LoadBalancer {
             }
         }, 0, UPDATE_INFO_PERIOD);
         
-        // open socket on port 8000 which expects requests as <IP>:8000/f.html?n=<requestNumber>
+        // open socket on port <SERVER_PORT> which expects requests as <IP>:<SERVER_PORT>/f.html?n=<requestNumber>
         HttpServer server = HttpServer.create(new InetSocketAddress( SERVER_PORT ), 0);
         server.createContext("/", new ReceiveRequestHandler());
         System.out.println("LB: Receiving requests at port "+String.valueOf( SERVER_PORT ));
@@ -128,7 +128,7 @@ public class LoadBalancer {
         }
     }
     
-    // check which machine has the lowest load
+    // choose machine that has the lowest load
     private static String chooseMachine() {
         // updateInstanceInformation();
         String chosenOne = "";
@@ -146,16 +146,15 @@ public class LoadBalancer {
         return chosenOne;
     }
       
-    
+    // Receives information from MSS and updates the memory map of each webserver with their respective load
+    // Also removes servers that are no longer in the MSS
     private static void updateInstanceInformation() {
         List<String> activeServers = new ArrayList<String>(); 
         
-        List<WebserverInfo> result = _mss.getAllMetrics();
-        for(WebserverInfo ws : result) {            
-            long totalLoad = 0L;
-            for(String threadLoad: ws.getMetrics().values()) { totalLoad += Long.parseLong( threadLoad ); }
-            _webservers.put( ws.getWebserverIP() , totalLoad );
-            
+        List<WebserverInfo> result = _mss.getAllMetrics(); 
+        for(WebserverInfo ws : result) {
+            _webservers.put( ws.getWebserverIP() , ws.getMetrics() );
+            System.out.println("update: "+ws.getWebserverIP() +" "+ ws.getMetrics());
             activeServers.add( ws.getWebserverIP() );
         }
         
@@ -163,7 +162,7 @@ public class LoadBalancer {
         keySet.retainAll( activeServers );
     }
     
-    
+    // Sends HTTP request to webserver with number to be factored
     private static String sendRequest(String machineIP, String request) throws Exception {
 
 		String url = machineIP+":8000/f.html?n="+request;
