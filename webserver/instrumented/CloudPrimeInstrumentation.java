@@ -14,7 +14,7 @@ import mss.*;
 public class CloudPrimeInstrumentation {
     
     private static final int  MAX_THREADS      = 2048;
-    private static final long METRIC_THRESHOLD = 1000000000L;
+    private static final long METRIC_THRESHOLD = 400000000L;
     
     private static PrintStream out = null;
     
@@ -50,16 +50,11 @@ public class CloudPrimeInstrumentation {
                     // instrument routine calcPrimeFactors to measure metrics
                     if(routine.getMethodName().equals("calcPrimeFactors")) {
                         
-                        // calculate loads
-                        for (Enumeration instrs = (routine.getInstructionArray()).elements(); instrs.hasMoreElements(); ) {
-							Instruction instr = (Instruction) instrs.nextElement();
-							int opcode=instr.getOpcode();
-                            short instr_type = InstructionTable.InstructionTypeTable[opcode];
-                            if (instr_type == InstructionTable.LOAD_INSTRUCTION) {
-                                instr.addBefore("CloudPrimeInstrumentation", "LSCount", 0);
-                            }
-							
-						}
+                        // calculate bb
+                        for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
+                            BasicBlock bb = (BasicBlock) b.nextElement();
+                            bb.addBefore("CloudPrimeInstrumentation", "LSCount", 0);
+                        }
                     }
                     
                     // when calcPrimeFactors finishes, method factorize is called and prints result to file
@@ -112,7 +107,9 @@ public class CloudPrimeInstrumentation {
         
         // remove metrics from mss
         removeMetrics( threadId );
-        
+        //long endTime = System.currentTimeMillis();
+        //long duration = (endTime - _startTime[index]);
+        //System.out.println( _loadcount[index] + " " + duration );
         // release locks
         _loadcount[index] = 0L;
         _startTime[index] = 0L;

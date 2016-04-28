@@ -40,7 +40,7 @@ import mss.*;
 
 public class LoadBalancer {
     
-    private static final int SERVER_PORT = 80;
+    private static final int SERVER_PORT = 8000;
         
     private static Map<String, Long> _webservers = Collections.synchronizedMap(new HashMap<String, Long>());
     
@@ -94,7 +94,7 @@ public class LoadBalancer {
             String[] parts = request.split("n=");
             request = parts[1];
             
-            
+            System.out.println(printWebservers());
             // send request to machine
             String response = "";
             int attempts = 0;
@@ -104,7 +104,9 @@ public class LoadBalancer {
                 String machineIP = chooseMachine(); System.out.println( "Picked machine: " + machineIP );
                 try {
                     // mark the increase of load for this machine
-                    long load = _webservers.getOrDefault( machineIP , 0L ) + RQST_INCREMENT;
+                    Long load = _webservers.get( machineIP );
+                    if(load == null) { load = 0L; }
+                    load += RQST_INCREMENT;
                     _webservers.put( machineIP, _webservers.get( machineIP ) + RQST_INCREMENT );
                     
                     response = sendRequest( machineIP , request );
@@ -114,6 +116,7 @@ public class LoadBalancer {
                         _webservers.put( machineIP, load - RQST_INCREMENT );
                     }
                 } catch(Exception e) { 
+                    System.out.println("Failed to send request to "+machineIP);
                     _webservers.remove( machineIP ); if(attempts > 5) { response = "AVAILABLE MACHINE NOT FOUND.\nPLEASE TRY AGAIN LATER."; break; }
                     // System.out.println("Failed to send request to "+machineIP+": " + e.toString());
                 }
@@ -188,38 +191,12 @@ public class LoadBalancer {
 
 	}
     
-    /*
-    private static void initEC2Client() throws Exception {
-
-        AWSCredentials credentials = null;
-        try {
-            credentials = new ProfileCredentialsProvider().getCredentials();
-        } catch (Exception e) {
-            throw new AmazonClientException(
-                    "Cannot load the credentials from the credential profiles file. " +
-                    "Please make sure that your credentials file is at the correct " +
-                    "location (~/.aws/credentials), and is in valid format.",
-                    e);
+    public static String printWebservers() {
+        String res = "[ ";
+        for (Map.Entry<String, Long> entry : _webservers.entrySet()) {
+            res += entry.getKey() + " " + entry.getValue() + ", ";
         }
-        _ec2Client = new AmazonEC2Client(credentials);
+        res += "]";
+        return res;
     }
-    
-    private static void updateInstanceInformation() {
-        
-        DescribeInstancesRequest request = new DescribeInstancesRequest();
-
-        DescribeInstancesResult result = _ec2Client.describeInstances( request );
-        List<Reservation> reservations = result.getReservations();
-
-        List<String> activeServers = new ArrayList<String>(); 
-        for (Reservation reservation : reservations) {
-            List<Instance> instances = reservation.getInstances();
-            for (Instance instance : instances) {
-                activeServers.add( instance.getPublicIpAddress() );
-            }
-        }
-        Set<String> keySet = _webservers.keySet();
-        keySet.retainAll( activeServers );
-    }
-    */
 }

@@ -59,6 +59,11 @@ public class MSS {
         //_amazonDB.updateThread( _publicIP , String.valueOf( threadID ) , String.valueOf( metric ) );
         _amazonDB.updateMetrics( _publicIP , load );
     }
+    
+    // Used by the loadbalancer when it detects the webserver failed
+    public void removeWebserver(String ip) {
+        _amazonDB.deleteItem( ip );
+    }
 
     // Finds out this machine's IP address so that it can register it in the dynamoDB
     private String getPublicIpAddress() {
@@ -83,8 +88,10 @@ public class MSS {
                     }
                 }
             }
+            // last resort, get private network address
+            if(res == null) { res = InetAddress.getLocalHost().getHostAddress(); } 
         } catch (Exception e) {
-            e.printStackTrace();
+            e.printStackTrace(); 
         }
         return res;
     }
