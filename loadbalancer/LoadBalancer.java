@@ -101,7 +101,7 @@ public class LoadBalancer {
             do {
                 attempts++;
                 // choose which machine will handle the request
-                String machineIP = chooseMachine(); System.out.println( "Picked machine: " + machineIP );
+                String machineIP = chooseMachine(); System.out.println( "Picked machine: " + machineIP +" for req:"+request );
                 try {
                     // mark the increase of load for this machine
                     Long load = _webservers.get( machineIP );
@@ -112,13 +112,14 @@ public class LoadBalancer {
                     response = sendRequest( machineIP , request );
                     
                     // checks if the value was not changed in the meantime by the mss update
-                    if(_webservers.get( machineIP ) == load) { 
-                        _webservers.put( machineIP, load - RQST_INCREMENT );
-                    }
+                    _webservers.replace( machineIP, load, load - RQST_INCREMENT );
+                    
                 } catch(Exception e) { 
                     System.out.println("Failed to send request to "+machineIP);
-                    _webservers.remove( machineIP ); if(attempts > 5) { response = "AVAILABLE MACHINE NOT FOUND.\nPLEASE TRY AGAIN LATER."; break; }
-                    // System.out.println("Failed to send request to "+machineIP+": " + e.toString());
+                    _webservers.remove( machineIP ); 
+                    if( machineIP != null && machineIP != "" ) { _mss.removeWebserver( machineIP ); }
+		    if(attempts > 5) { response = "AVAILABLE MACHINE NOT FOUND.\nPLEASE TRY AGAIN LATER."; break; }
+	            // System.out.println("Failed to send request to "+machineIP+": " + e.toString());
                 }
             } while(response.equals(""));
             
@@ -157,7 +158,7 @@ public class LoadBalancer {
         List<WebserverInfo> result = _mss.getAllMetrics(); 
         for(WebserverInfo ws : result) {
             _webservers.put( ws.getWebserverIP() , ws.getMetrics() );
-            System.out.println("update: "+ws.getWebserverIP() +" "+ ws.getMetrics());
+            //System.out.println("update: "+ws.getWebserverIP() +" "+ ws.getMetrics());
             activeServers.add( ws.getWebserverIP() );
         }
         
@@ -183,7 +184,7 @@ public class LoadBalancer {
 		StringBuffer response = new StringBuffer();
 		while ((inputLine = in.readLine()) != null) {
 			response.append(inputLine);
-            System.out.println(inputLine);
+            //System.out.println(inputLine);
 		}
 		in.close();
 
@@ -192,9 +193,9 @@ public class LoadBalancer {
 	}
     
     public static String printWebservers() {
-        String res = "[ ";
+        String res = "[\n";
         for (Map.Entry<String, Long> entry : _webservers.entrySet()) {
-            res += entry.getKey() + " " + entry.getValue() + ", ";
+            res += entry.getKey() + " " + entry.getValue() + ",\n";
         }
         res += "]";
         return res;

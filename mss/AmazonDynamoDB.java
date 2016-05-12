@@ -120,7 +120,18 @@ public class AmazonDynamoDB {
     public static void deleteItem(String webserverIP) {
         Table table = _dynamoDB.getTable( TABLE_NAME );
 
-        DeleteItemOutcome outcome = table.deleteItem( PRIMARY_KEY , webserverIP );
+        // DeleteItemOutcome outcome = table.deleteItem( PRIMARY_KEY , webserverIP );
+        
+        try {
+
+            DeleteItemSpec deleteItemSpec = new DeleteItemSpec().withPrimaryKey( PRIMARY_KEY, webserverIP );
+
+            DeleteItemOutcome outcome = table.deleteItem(deleteItemSpec);
+
+        } catch (Exception e) {
+            System.err.println("Error deleting item in " + tableName);
+            System.err.println(e.getMessage());
+        }
     }
     
 
