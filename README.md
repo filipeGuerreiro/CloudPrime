@@ -1,5 +1,12 @@
 # CloudPrime
 
+CloudPrime is a load balancer and auto scaler implementation.
+
+This project sets up several webservers in different AWS EC2 instances running an integer prime factorization process.
+
+Since only the binary is provided, code instrumentation is used to add metrics to the program, which send metrics information to AWS S3.
+
+The auto scaler checks these metrics periodically to determine to scale up or down the number of instances available.
 
 ## System architecture
 

@@ -12,7 +12,7 @@ public class IntFactorization {
   private BigInteger one = new BigInteger("1");
   private BigInteger divisor = new BigInteger("2");
   private ArrayList<BigInteger> factors = new ArrayList<BigInteger>();
-  
+
   // wrapper method for calcPrimeFactors
   // makes it possible to add instrumentation when calcPrimeFactors finishes
   ArrayList<BigInteger> factorize(BigInteger num) {
@@ -21,12 +21,12 @@ public class IntFactorization {
   }
 
   ArrayList<BigInteger> calcPrimeFactors(BigInteger num) {
- 
-    if (num.compareTo(one)==0) {
+
+    if (num.compareTo(one) == 0) {
       return factors;
     }
 
-    while(num.remainder(divisor).compareTo(zero)!=0) {
+    while (num.remainder(divisor).compareTo(zero) != 0) {
       divisor = divisor.add(one);
     }
 
@@ -34,18 +34,16 @@ public class IntFactorization {
     return calcPrimeFactors(num.divide(divisor));
   }
 
-
   public static void main(String[] args) {
     IntFactorization obj = new IntFactorization();
     int i = 0;
 
     System.out.println("Factoring " + args[0] + "...");
-    ArrayList<BigInteger> factors = 
-      obj.calcPrimeFactors(new BigInteger(args[0]));
+    ArrayList<BigInteger> factors = obj.calcPrimeFactors(new BigInteger(args[0]));
 
     System.out.println("");
     System.out.print("The prime factors of " + args[0] + " are ");
-    for (BigInteger bi: factors) {
+    for (BigInteger bi : factors) {
       i++;
       System.out.print(bi.toString());
       if (i == factors.size()) {

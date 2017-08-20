@@ -9,41 +9,41 @@ import java.util.Date;
 import java.util.Map;
 import com.amazonaws.services.cloudwatch.model.Datapoint;
 
+public abstract class ScalePolicy extends TimerTask {
 
-public abstract class ScalePolicy extends TimerTask{
-	
 	protected static final ConcurrentMap<Integer, Timer> policyTimers = new ConcurrentHashMap<Integer, Timer>();
-	
+
 	protected Integer policyId;
-	
+
 	abstract void policyTask();
-	
+
 	@Override
 	public void run() {
 		policyTask();
 	}
-	
-	protected void cooldownAllPolicyTasks(){
-		System.out.println("Coolling down for : " + Constants.COOLDOWN_PERIOD +" miliseconds.");
-		for(Map.Entry e : ScalePolicy.policyTimers.entrySet()){
-			Integer policyId = (Integer)e.getKey();
-			Timer oldTimer = (Timer)e.getValue();
+
+	protected void cooldownAllPolicyTasks() {
+		System.out.println("Coolling down for : " + Constants.GRACE_PERIOD + " miliseconds.");
+		for (Map.Entry e : ScalePolicy.policyTimers.entrySet()) {
+			Integer policyId = (Integer) e.getKey();
+			Timer oldTimer = (Timer) e.getValue();
 			oldTimer.cancel();
 			Timer newTimer = new Timer();
 			policyTimers.replace(policyId, oldTimer, newTimer);
-			if(policyId == Constants.INCR_POLICY_ID){
-				System.out.println("INCR POLICY SCHEDULED");
-				newTimer.schedule(new IncreaseGroupPolicy(policyId), new Date(new Date().getTime() + Constants.COOLDOWN_PERIOD));
-			}
-			else if(policyId == Constants.DECR_POLICY_ID){
-				System.out.println("DECRE POLICY SCHEDULED");
-				newTimer.schedule(new DecreaseGroupPolicy(policyId), new Date(new Date().getTime() + Constants.COOLDOWN_PERIOD));
+			if (policyId == Constants.INCR_POLICY_ID) {
+				// System.out.println("INCR POLICY RESCHEDULED");
+				newTimer.schedule(new IncreaseGroupPolicy(policyId),
+						new Date(new Date().getTime() + Constants.GRACE_PERIOD));
+			} else if (policyId == Constants.DECR_POLICY_ID) {
+				// System.out.println("DECRE POLICY RESCHEDULED");
+				newTimer.schedule(new DecreaseGroupPolicy(policyId),
+						new Date(new Date().getTime() + Constants.GRACE_PERIOD));
 			}
 		}
 	}
-	
+
 	protected List<Datapoint> getTwoRecentDatapoins(List<Datapoint> datapoints) {
-		
+
 		System.out.println(" Datapoint with time = " + datapoints.get(0).getTimestamp().toString());
 		Datapoint firstRecent = datapoints.get(0);
 		Datapoint secondRecent = null;
@@ -54,9 +54,8 @@ public abstract class ScalePolicy extends TimerTask{
 			if (dp.getTimestamp().after(firstRecent.getTimestamp())) {
 				secondRecent = firstRecent;
 				firstRecent = dp;
-			}
-			else if (secondRecent == null || (dp.getTimestamp().after(secondRecent.getTimestamp()) && 
-												dp.getTimestamp().before(firstRecent.getTimestamp()))) {
+			} else if (secondRecent == null || (dp.getTimestamp().after(secondRecent.getTimestamp())
+					&& dp.getTimestamp().before(firstRecent.getTimestamp()))) {
 				secondRecent = dp;
 			}
 		}
@@ -64,16 +63,16 @@ public abstract class ScalePolicy extends TimerTask{
 		System.out.println(" Datapoint secondRecent with time = " + secondRecent.getTimestamp().toString());
 		return new ArrayList<Datapoint>(Arrays.asList(firstRecent, secondRecent));
 	}
-	
-	protected Timer getPolicyTimer(Integer policyId){
+
+	protected Timer getPolicyTimer(Integer policyId) {
 		return policyTimers.get(policyId);
 	}
-	
-	public Integer getPolicyId(){
+
+	public Integer getPolicyId() {
 		return this.policyId;
 	}
-	
-	public void addNewPolicyTimer(Integer policyId){
+
+	public void addNewPolicyTimer(Integer policyId) {
 		policyTimers.put(policyId, new Timer());
 	}
 }
